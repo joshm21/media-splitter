@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Splitter</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        width: 90vw;
+      }
+
+      @media (min-width: 768px) {
+        .container {
+          flex-direction: row;
+        }
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        box-sizing: border-box;
+        padding: 2vh;
+      }
+
+      .details {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow-y: auto;
+        height: 100vh;
+        box-sizing: border-box;
+        padding: 2vh;
+      }
+
+      .player-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 90vh;
+      }
+
+      video {
+        max-height: 90vh;
+        width: auto;
+      }
+
+      .controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 10vh;
+      }
+
+      .splits-list {
+        width: 100%;
+        max-height: 100%;
+        overflow-y: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 2px;
+        text-align: center;
+      }
+
+      th {
+        background-color: #f2f2f2;
+      }
+
+      button {
+        padding: 8px 16px;
+        font-size: 14px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        margin: 5px;
+        cursor: pointer;
+      }
+
+      .small {
+        padding: 1px;
+        font-size: 14px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        margin: 1px;
+        width: 98%;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app" class="container">
+      <div class="main">
+        <div v-if="!file" class="player-container">
+          <button @click="loadFile">Load File</button>
+          <input type="file" ref="fileInput" @change="handleFile" accept="audio/*,video/*" style="display: none;">
+        </div>
+        <div v-else class="player-container">
+          <audio v-if="isAudio" ref="player" :src="fileUrl" controls></audio>
+          <video v-else ref="player" :src="fileUrl" controls></video>
+        </div>
+        <div class="controls">
+          <button @click="toggleButton">{{ isPlaying ? 'Split' : 'Play' }}</button>
+        </div>
+      </div>
+      <div class="details">
+        <h3>Splits <button id="export-button" @click="exportCSV">Save as CSV</button>
+        </h3>
+        <div class="splits-list">
+          <table border="1">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Name</th>
+                <th></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(split, index) in splits" :key="index">
+                <td>{{ index + 1 }}</td>
+                <td>{{ (index === 0 ? 0 : splits[index - 1].end).toFixed(2) }}</td>
+                <td>{{ split.end.toFixed(2) }}</td>
+                <td>
+                  <input v-model="split.name" class="small">
+                </td>
+                <td>
+                  <button @click="playSplit(split.end)" class="small">▶</button>
+                </td>
+                <td>
+                  <button @click="removeSplit(split.end)" class="small" style="background:#ff000061;">X</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <script>
+      const app = Vue.createApp({
+        data() {
+          return {
+            file: null,
+            fileUrl: '',
+            isAudio: false,
+            splitName: '',
+            splits: [],
+            player: null,
+            isPlaying: false,
+          };
+        },
+        methods: {
+          loadFile() {
+            this.$refs.fileInput.click();
+          },
+          handleFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+              this.file = file;
+              this.fileUrl = URL.createObjectURL(file);
+              this.isAudio = file.type.startsWith('audio');
+              this.splitName = this.generateSplitName(1);
+              this.$nextTick(() => {
+                this.player = this.$refs.player;
+              });
+            }
+          },
+          generateSplitName(index) {
+            return this.file.name.split('.').slice(0, -1).join('.') + `_${index}` + (this.isAudio ? '.mp3' : '.mp4');
+          },
+          toggleButton() {
+            if (this.isPlaying) {
+              this.player.pause();
+              this.isPlaying = false;
+              this.saveSplit();
+              this.splitName = this.generateSplitName(this.splits.length + 1);
+            } else {
+              this.player.play();
+              this.isPlaying = true;
+            }
+          },
+          saveSplit() {
+            this.splits.push({
+              end: this.player.currentTime,
+              name: this.splitName
+            });
+            this.splits.sort((a, b) => a.end - b.end);
+          },
+          playSplit(endTime) {
+            const index = this.splits.findIndex(split => split.end === endTime);
+            const split = this.splits[index];
+            const startTime = index === 0 ? 0 : this.splits[index - 1].end;
+            if (this.player) {
+              this.player.currentTime = startTime;
+              this.player.play();
+              setTimeout(() => this.player.pause(), (split.end - startTime) * 1000);
+            }
+          },
+          removeSplit(endTime) {
+            const index = this.splits.findIndex(split => split.end === endTime);
+            this.splits.splice(index, 1);
+          },
+          exportCSV() {
+            if (this.file) {
+              const videoName = this.file.name.split('.').slice(0, -1).join('.');
+              const csvContent = [
+                ['Split #', 'Start Time', 'End Time', 'Name'], ...this.splits.map((split, index) => [
+                  index + 1,
+                  (index === 0 ? 0 : this.splits[index - 1].end).toFixed(2),
+                  split.end.toFixed(2),
+                  split.name
+                ])
+              ].map(row => row.join(',')).join('\n');
+              const blob = new Blob([csvContent], {
+                type: 'text/csv;charset=utf-8;'
+              });
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = `${videoName}_splits.csv`;
+              link.click();
+            }
+          },
+        },
+      });
+      app.mount('#app');
+    </script>
+  </body>
+</html>
