@@ -111,7 +111,7 @@
       }
     </style>
   </head>
-  <body>
+<body>
     <div id="app" class="container">
       <div class="main">
         <div v-if="!file" class="player-container">
@@ -168,7 +168,6 @@
             file: null,
             fileUrl: '',
             isAudio: false,
-            splitName: '',
             splits: [],
             player: null,
             isPlaying: false,
@@ -184,7 +183,6 @@
               this.file = file;
               this.fileUrl = URL.createObjectURL(file);
               this.isAudio = file.type.startsWith('audio');
-              this.splitName = this.generateSplitName(1);
               this.$nextTick(() => {
                 this.player = this.$refs.player;
               });
@@ -198,7 +196,6 @@
               this.player.pause();
               this.isPlaying = false;
               this.saveSplit();
-              this.splitName = this.generateSplitName(this.splits.length + 1);
             } else {
               this.player.play();
               this.isPlaying = true;
@@ -207,7 +204,7 @@
           saveSplit() {
             this.splits.push({
               end: this.player.currentTime,
-              name: this.splitName
+              name: this.generateSplitName(this.splits.length + 1)
             });
             this.splits.sort((a, b) => a.end - b.end);
           },
